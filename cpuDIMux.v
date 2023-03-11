@@ -12,6 +12,7 @@
 *       Ver 0.3 1/30/23:  Added pll0_250MHz clocking                *
 *       Ver 0.4 2/14/23:  Added/fixed IDE selection (project 10)    *
 *                           and fixed = vs <= in else if            *
+*       Ver 0.45 3/10/23    Fixed to allow other S100 I/O boards    *
 ********************************************************************/
 
 module cpuDIMux
@@ -32,33 +33,33 @@ module cpuDIMux
     input   usbStat_cs,
     input   usbRxD_cs,
     input   ide_cs,
+    input   z80Read,
     input   pll0_250MHz,
-    output wire [7:0] outData
+    output reg [7:0] outData
     );
-    
-reg [7:0] selectedData;
 
 always @(posedge pll0_250MHz) begin
     if (rom_cs)
-        selectedData <= romData;
-   else if (ide_cs)
-        selectedData <= s100DataIn;
+        outData <= romData;
+    else if (reset_cs)
+        outData <= 8'h00;
+
+        else if (ide_cs)
+        outData <= s100DataIn;
     else if(inPortcon_cs)
-        selectedData <= s100DataIn;
+        outData <= s100DataIn;
     else if (ram_cs)
-        selectedData <= ramaData;
+        outData <= ramaData;
     else if (inLED_cs)
-        selectedData <= ledread;
+        outData <= ledread;
     else if (iobyteIn_cs)
-        selectedData <= iobyte;
-     else if (usbRxD_cs)
-        selectedData <= usbRxD;
-     else if(usbStat_cs)
-        selectedData <= usbStatus;
-   else if (reset_cs)
-        selectedData <= 8'h00;   // execute a NOP for now
+        outData <= iobyte;
+    else if (usbRxD_cs)
+        outData <= usbRxD;
+    else if(usbStat_cs)
+        outData <= usbStatus;
+    else if (z80Read)
+        outData <= s100DataIn;
     end
-    
-    assign outData = selectedData;
     
 endmodule

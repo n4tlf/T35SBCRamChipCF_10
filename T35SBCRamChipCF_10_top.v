@@ -6,7 +6,8 @@
 *		being applied to several earlier projects						*
 *   TFOX, N4TLF January 20, 2023   You are free to use it             	*
 *       however you like.  No warranty expressed or implied           	*
-***********************************************************************/
+*   March 10, 2023:  "Fixed DImux to allow access to S100 I/O boards    *
+************************************************************************/
 
 module  T35SBCRamChipCF_10_top(
     clockIn,            // 50MHz input from onboard oscillator
@@ -224,7 +225,7 @@ module  T35SBCRamChipCF_10_top(
     wire    inPortCON_cs;
     wire    rom_cs;
     wire    ram_cs;
-    wire    nop_cs;
+    wire    nop_n_cs;
     wire    miscCtl_cs;
     wire    inBarLED_cs;
     wire    outBarLED_cs;
@@ -461,7 +462,7 @@ assign s100_CDSB = !ctlDisable;                 // Control Signals Disabe
 //////////////////////////////////////////////////////////////////////////////
 assign debugReg[0] = !ram_cs;
 assign debugReg[1] = !n_reset;          //z80_n_rd;
-assign debugReg[2] = !nop_cs;           //z80_n_mreq;
+assign debugReg[2] = !nop_n_cs;           //z80_n_mreq;
 assign debugReg[3] = !rom_cs;
 assign debugReg[4] = s100_pDBIN;
 assign debugReg[5] = s100_sMEMR;
@@ -519,6 +520,7 @@ cpuHAdrMux  HighAdrMux(
 *   CPU Data INPUT Multiplexer      Note: Efinix FPGAs do NOT have tristate ability  *
 *************************************************************************************/
 cpuDIMux    cpuInMux (
+    .z80Read        (!z80_n_rd), 
     .romData        (romOut[7:0]),
     .s100DataIn     (s100_DI[7:0]),
     .ramaData       (biData_IN[7:0]),
@@ -526,7 +528,7 @@ cpuDIMux    cpuInMux (
     .iobyte         (sw_IOBYTE[7:0]),    
     .usbStatus      (usbStat[7:0]),
     .usbRxD         (usbRxData[7:0]),
-    .reset_cs       (nop_cs),
+    .reset_cs       (!nop_n_cs),
     .rom_cs         (rom_cs),
     .inPortcon_cs   (inPortCON_cs),
     .ram_cs         (ram_cs),
@@ -546,7 +548,7 @@ memAdrDecoder  mem_cs(
     .address        (buildAddress[15:12]),  // change to [15:9] for small ROM (prj 6)
     .memwrite       (memWR),
     .memread        (memRD),
-    .reset_cs       (nop_cs),
+    .reset_cs       (nop_n_cs),
     .rom_cs         (rom_cs),
     .ram_cs         (ram_cs)
      );
@@ -773,7 +775,7 @@ dff3     HLDAoutLatch(              // was dff
         );
 
 /********************************************************************************
-*   S100 HOLD IN (busreq) Latch FF  Driven from S100 HOLD pin                   *
+*                  *
 ********************************************************************************/        
 dff3     ctlDisableLatch(       //was dff
         .clk        (cpuClock),
@@ -784,14 +786,15 @@ dff3     ctlDisableLatch(       //was dff
         );
 
 /********************************************************************************
-*   S100 HOLD IN (busreq) Latch FF  Driven from S100 HOLD pin                   *
+*   Jump To ROM F0.  output (nop_n_cs) goes LOW upon reset, enabling NOPs to    *
+*       CPU Data IN until rom address (F000) is reached, then it goes high      *
 ********************************************************************************/        
 dff3    jumptoRom(
         .clk        (n_reset),
         .pst_n      (!rom_cs),
         .clr_n      (1'b1),     
         .din        (1'b0),
-        .q          (nop_cs));
+        .q          (nop_n_cs));
 
 /********************************************************************************
 *   CPU Clock input Mux.  Selects one of four clock frequencies                 *
